@@ -12,6 +12,7 @@ clap = {version = "2.19", features = ["yaml"]}
 [profile.release]
 opt-level = 3
 debug = false
-lto = true
+#lto = true
 debug-assertions = false
 panic = "abort"
+

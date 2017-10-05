@@ -6,10 +6,8 @@ extern crate test;
 
 use std::io::{self, Read, Write, BufRead, BufReader, BufWriter};
 use std::fs::{File};
-use std::iter::Iterator;
 use clap::App;
 
-const BASE: u32 = 127991;
 const BUFSIZE : usize = 65536;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -37,31 +35,24 @@ fn main() {
     let mut writer = BufWriter::with_capacity(BUFSIZE, io::stdout());
     if cli_args.is_present("decode") {
         let mut buffer = [0u8; BUFSIZE];
-        while let Ok(num_read) = reader.read(&mut buffer) {
+        let mut remain = 0;
+        while let Ok(num_read) = reader.read(&mut buffer[remain..remain+1]) {
             if num_read == 0 {
                 break;
             }
-            let decoded_str = if cli_args.is_present("fast") {
-                unsafe {
-                    std::str::from_utf8_unchecked(&buffer)
-                }
-            } else {
-                match std::str::from_utf8(&buffer) {
-                    Ok(string) => string,
-                    _ => {
-                        writeln!(io::stderr(), "base💯: write error").expect("base💯: stderr write error");
-                        return;
-                    }
-                }
-            };
-            match writer.write(decoded_str.chars()
-                               .map(|ch| { (ch as u32 - BASE) as u8 })
-                               .collect::<Vec<u8>>().as_slice()) {
-                Ok(_) => (),
-                _ => {
+
+            let to_process = (remain + num_read) / 4;
+            remain = (remain + num_read) % 4;
+            for i in 0..to_process {
+                if let Err(_) = from_emoticon(&buffer[(i*4)..(i*4+4)])
+                    .and_then(|byte|writer.write(&[byte]).map_err(|_|DecodeError)) {
                     writeln!(io::stderr(), "base💯: write error").expect("base💯: stderr write error");
-                    return;
+                    std::process::abort();
                 }
+            }
+
+            for i in 0..remain {
+                buffer[i] = buffer[(4*to_process)+i];
             }
         }
     } else {
@@ -112,9 +103,11 @@ fn to_emoticon(byte: u8) -> [u8; 4] {
 
 #[cfg(test)]
 mod tests {
+    const BASE: u32 = 127991;
+
     fn to_emoticon_original(byte: u8) -> [u8; 4] {
         let mut result = [0; 4];
-        ::std::char::from_u32(::BASE + (byte as u32)).expect("an emoticon").encode_utf8(&mut result[..]);
+        ::std::char::from_u32(BASE + (byte as u32)).expect("an emoticon").encode_utf8(&mut result[..]);
         result
     }
     
@@ -123,7 +116,7 @@ mod tests {
             ::std::str::from_utf8_unchecked(&buf)
                 .chars()
                 .next()
-                .map(|c|(c as u32 - ::BASE) as u8)
+                .map(|c|(c as u32 - BASE) as u8)
                 .ok_or(::DecodeError)
         }
     }
@@ -133,7 +126,7 @@ mod tests {
             .into_iter()
             .flat_map(str::chars)
             .next()
-            .map(|c|(c as u32 - ::BASE) as u8)
+            .map(|c|(c as u32 - BASE) as u8)
             .ok_or(::DecodeError)
     }
 
