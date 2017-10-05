@@ -36,7 +36,7 @@ fn main() {
     if cli_args.is_present("decode") {
         let mut buffer = [0u8; BUFSIZE];
         let mut remain = 0;
-        while let Ok(num_read) = reader.read(&mut buffer[remain..remain+1]) {
+        while let Ok(num_read) = reader.read(&mut buffer[remain..]) {
             if num_read == 0 {
                 break;
             }
